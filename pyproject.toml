@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "konvert-studio"
+version = "0.1.0"
+description = "Konverter media lokal berbasis ffmpeg dengan UI web"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []  # sengaja kosong: hanya stdlib + ffmpeg
+
+[project.scripts]
+konvert = "konvert.server:main"
+
+[tool.setuptools]
+packages = ["konvert"]
+
+[tool.setuptools.package-data]
+konvert = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

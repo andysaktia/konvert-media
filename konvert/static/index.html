@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Konvert Studio</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Konvert Studio</h1>
+    <p id="engine" class="engine">Memuat ffmpeg…</p>
+  </header>
+
+  <main class="bench">
+    <section class="intake" aria-labelledby="h-files">
+      <h2 id="h-files" class="sr">File</h2>
+      <label class="drop">
+        <input id="picker" type="file" multiple>
+        <span class="drop-main">Seret file ke sini</span>
+        <span class="drop-sub">atau klik untuk memilih. Video, audio, atau gambar.</span>
+      </label>
+      <ul id="files" class="rows"></ul>
+    </section>
+
+    <section class="setup" aria-labelledby="h-set">
+      <h2 id="h-set">Konversi ke</h2>
+      <div id="presets"></div>
+      <label id="heightWrap" class="field" hidden>
+        <span>Tinggi maksimum</span>
+        <select id="height"></select>
+      </label>
+      <button id="go" class="primary" type="button" disabled>Konversi</button>
+      <p id="notice" class="notice" role="status"></p>
+    </section>
+
+    <section class="queue" aria-labelledby="h-q">
+      <div class="queue-head">
+        <h2 id="h-q">Hasil</h2>
+        <button id="clear" class="btn" type="button" hidden>Hapus semua hasil</button>
+      </div>
+      <ul id="jobs" class="rows"></ul>
+      <p id="jobsEmpty" class="empty">Belum ada konversi. Tambahkan file, pilih format, lalu klik Konversi.</p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
