@@ -58,6 +58,26 @@ function setNotice(text, kind) {
   if (kind) n.dataset.kind = kind; else delete n.dataset.kind;
 }
 
+async function openFolder(path, button) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Membuka…';
+  try {
+    await post(path);
+    button.textContent = 'Terkirim';
+    setNotice('Permintaan buka folder terkirim.');
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.textContent = label;
+      button.disabled = false;
+    }, 1200);
+  } catch (e) {
+    button.textContent = label;
+    button.disabled = false;
+    setNotice(e.message, 'error');
+  }
+}
+
 // ---------- format & nilai parameter ----------
 const curFmt = () => state.byId.get(state.fmt);
 const curVals = () => state.values[state.fmt];
@@ -460,7 +480,7 @@ function buildActions(j) {
     }
     const open = make('button', 'btn', 'Buka folder');
     open.type = 'button';
-    open.onclick = () => post(`/api/jobs/${j.id}/reveal`).catch((e) => setNotice(e.message, 'error'));
+    open.onclick = () => openFolder(`/api/jobs/${j.id}/reveal`, open);
     out.push(open);
   }
   let b;
@@ -538,7 +558,7 @@ $('#clear').addEventListener('click', () => {
     api(`/api/jobs/${j.id}`, { method: 'DELETE' }).then(() => removeJob(j.id)).catch(() => {}));
 });
 
-$('#openOut').addEventListener('click', () => post('/api/open-out').catch((e) => setNotice(e.message, 'error')));
+$('#openOut').addEventListener('click', (e) => openFolder('/api/open-out', e.currentTarget));
 
 $('#picker').addEventListener('change', (e) => {
   [...e.target.files].forEach(upload);
