@@ -1,15 +1,21 @@
-"""Antrean konversi: file upload, job, progress, pembatalan, dan siaran event ke UI (SSE)."""
+"""Antrean konversi: upload, job, progress, pembatalan, penerbitan hasil ke folder, dan event ke UI (SSE).
+
+ffmpeg selalu menulis ke folder sementara (work/stage/<job>). Hanya setelah sukses hasilnya
+dipindah ke folder hasil, jadi folder hasil tidak pernah berisi file setengah jadi.
+"""
 import queue
 import shutil
 import subprocess
 import threading
+import time
 import uuid
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import ffmpeg as ff
-from .presets import BY_ID, HEIGHTS, available
+from . import paths
+from .presets import BY_ID, accepts, available, resolve, summary
 
 # Kunci keluaran `-progress`; baris lain dari ffmpeg (loglevel error) dianggap pesan galat.
 PROGRESS_KEYS = {"frame", "fps", "bitrate", "total_size", "out_time_us", "out_time_ms",
@@ -17,33 +23,51 @@ PROGRESS_KEYS = {"frame", "fps", "bitrate", "total_size", "out_time_us", "out_ti
 ACTIVE = ("queued", "running")
 
 
+def plan_output(fmt, params, name):
+    """Template nama hasil -> (segmen path relatif, nama file yang dipakai untuk {name})."""
+    stem = Path(name).stem
+    shown = paths.web_safe(stem) if fmt.get("websafe") else stem
+    res = f"{params['height']}p" if params.get("height") else ""
+    segs = paths.render(params["out"], {"name": shown, "res": res, "date": time.strftime("%Y%m%d"),
+                                        "fmt": fmt["id"]})
+    if fmt["kind"] == "file":
+        ext = "." + fmt["ext"]
+        if segs[-1].lower().endswith(ext) and len(segs[-1]) > len(ext):
+            segs[-1] = segs[-1][:-len(ext)]
+        segs[-1] += ext
+    return segs, shown
+
+
 class Job:
-    def __init__(self, file, preset, max_height):
+    def __init__(self, file, fmt, params, segs, stem):
         self.id = uuid.uuid4().hex
-        self.file, self.preset, self.max_height = file, preset, max_height
+        self.file, self.fmt, self.params, self.segs, self.stem = file, fmt, params, segs, stem
         self.status, self.percent, self.speed, self.error = "queued", 0.0, "", ""
-        self.out_path, self.out_size = None, 0
+        self.rel = "/".join(segs)  # jadi path final (bisa bernomor) setelah selesai
+        self.dest, self.size, self.nfiles = None, 0, 0
         self.cancelled, self.proc = False, None
 
     def as_dict(self):
         return {"id": self.id, "file_id": self.file["id"], "name": self.file["name"],
-                "preset": self.preset["id"], "label": self.preset["label"],
-                "ext": self.preset["ext"], "max_height": self.max_height,
-                "status": self.status, "percent": round(self.percent, 1),
-                "speed": self.speed, "error": self.error,
-                "out_name": self.out_path.name if self.out_path else "",
-                "out_size": self.out_size}
+                "format": self.fmt["id"], "label": self.fmt["label"], "kind": self.fmt["kind"],
+                "summary": summary(self.fmt, self.params), "status": self.status,
+                "percent": round(self.percent, 1), "speed": self.speed, "error": self.error,
+                "rel": self.rel, "size": self.size, "files": self.nfiles,
+                "out_name": self.dest.name if self.dest else ""}
 
 
 class Jobs:
-    def __init__(self, work, workers=2):
-        self.work = Path(work)
+    def __init__(self, work, out_dir, workers=2):
+        self.work, self.out_dir = Path(work), Path(out_dir).resolve()
+        w = self.work.resolve()
+        if w == self.out_dir or w in self.out_dir.parents:
+            raise ValueError("Folder hasil tidak boleh berada di dalam folder kerja (isinya dihapus tiap start)")
         shutil.rmtree(self.work, ignore_errors=True)  # hanya subfolder kerja milik kita
         (self.work / "in").mkdir(parents=True)
-        (self.work / "out").mkdir()
+        (self.work / "stage").mkdir()
         self.pool = ThreadPoolExecutor(max(1, workers), thread_name_prefix="konvert")
         self.files, self.jobs = {}, {}
-        self._subs, self._lock = [], threading.Lock()
+        self._subs, self._lock, self._pub = [], threading.Lock(), threading.Lock()
 
     # ---- event (SSE) ----
     def subscribe(self):
@@ -81,18 +105,23 @@ class Jobs:
         del self.files[fid]
 
     # ---- job ----
-    def submit(self, fid, preset_id, max_height=None):
+    def format_for(self, fmt_id):
+        fmt = BY_ID.get(fmt_id)
+        if not fmt or fmt not in available(ff.encoders()):
+            raise ValueError("Format tidak tersedia di ffmpeg ini")
+        return fmt
+
+    def submit(self, fid, fmt_id, raw_params):
         f = self.files.get(fid)
         if not f:
             raise ValueError("File tidak ditemukan")
-        preset = BY_ID.get(preset_id)
-        if not preset or preset not in available(ff.encoders()):
-            raise ValueError("Preset tidak tersedia di ffmpeg ini")
-        if f["kind"] not in preset["kinds"]:
-            raise ValueError(f"{f['kind']} tidak cocok untuk preset {preset['label']}")
-        if max_height not in (None, *HEIGHTS):
-            raise ValueError("Tinggi maksimum tidak valid")
-        job = Job(f, preset, max_height)
+        fmt = self.format_for(fmt_id)
+        if not accepts(fmt, f):
+            why = "tidak punya audio" if f["kind"] in fmt["kinds"] else f"tidak cocok untuk {fmt['label']}"
+            raise ValueError(f"{f['name']} {why}")
+        params = resolve(fmt, raw_params)
+        segs, stem = plan_output(fmt, params, f["name"])
+        job = Job(f, fmt, params, segs, stem)
         self.jobs[job.id] = job
         self._emit_job(job)
         self.pool.submit(self._run, job)
@@ -111,10 +140,9 @@ class Jobs:
         return job
 
     def remove(self, jid):
-        job = self.jobs[jid]
-        if job.status in ACTIVE:
+        """Hanya menghapus dari daftar; file hasil di folder hasil tidak disentuh."""
+        if self.jobs[jid].status in ACTIVE:
             raise RuntimeError("Batalkan dulu job yang sedang berjalan")
-        shutil.rmtree(self.work / "out" / job.id, ignore_errors=True)
         del self.jobs[jid]
         self._emit({"type": "removed", "id": jid})
 
@@ -126,17 +154,20 @@ class Jobs:
     def _run(self, job):
         if job.cancelled:
             return
-        out_dir = self.work / "out" / job.id
-        out_dir.mkdir(parents=True, exist_ok=True)
-        stem = Path(job.file["name"]).stem
-        job.out_path = out_dir / f"{stem}.{job.preset['ext']}"
+        f, fmt = job.file, job.fmt
+        stage = self.work / "stage" / job.id
         job.status = "running"
         self._emit_job(job)
-
-        duration = job.file["duration"]
-        tail, last = deque(maxlen=12), -1
+        duration, tail, last = f["duration"], deque(maxlen=12), -1
         try:
-            cmd = ff.build_command(job.file["path"], job.out_path, job.preset, job.max_height)
+            ctx = {**f, "stem": job.stem}
+            target = stage / job.segs[-1]
+            if fmt["kind"] == "dir":
+                for d in [".", *fmt["dirs"](job.params, ctx)]:
+                    (target / d).mkdir(parents=True, exist_ok=True)
+            else:
+                stage.mkdir(parents=True)
+            cmd = ff.build_command(f["path"], fmt, job.params, ctx, target)
             job.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                         stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                                         errors="replace", creationflags=ff.NOWIN)
@@ -157,16 +188,35 @@ class Jobs:
             rc = job.proc.wait()
             if job.cancelled:
                 job.status = "cancelled"
-            elif rc == 0 and job.out_path.is_file():
-                job.status, job.percent = "done", 100.0
-                job.out_size = job.out_path.stat().st_size
+            elif rc == 0:
+                self._publish(job, target, ctx)
             else:
-                job.status = "error"
-                job.error = "\n".join(tail) or f"ffmpeg berhenti dengan kode {rc}"
+                job.status, job.error = "error", "\n".join(tail) or f"ffmpeg berhenti dengan kode {rc}"
         except Exception as e:  # noqa: BLE001 - laporkan apa pun ke UI
             job.status, job.error = "error", f"{type(e).__name__}: {e}"
-        if job.status != "done":
-            shutil.rmtree(out_dir, ignore_errors=True)
-            job.out_path = None
+        finally:
+            shutil.rmtree(stage, ignore_errors=True)
         job.speed = ""
         self._emit_job(job)
+
+    def _publish(self, job, target, ctx):
+        """Pindahkan hasil dari folder sementara ke folder hasil (di bawah kunci, agar nomor tidak bentrok)."""
+        fmt = job.fmt
+        is_dir = fmt["kind"] == "dir"
+        main = target / fmt["main"](job.params, ctx) if is_dir else target
+        if not main.is_file():
+            raise RuntimeError("ffmpeg selesai tetapi tidak menghasilkan file")
+        with self._pub:
+            dest = self.out_dir.joinpath(*job.segs)
+            dest.resolve().relative_to(self.out_dir)  # ValueError bila keluar dari folder hasil
+            if dest.exists():
+                if job.params["exists"] == "replace":
+                    shutil.rmtree(dest) if is_dir else dest.unlink()
+                else:
+                    dest = paths.unique(dest, is_dir)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(target), str(dest))
+        job.dest, job.rel = dest, dest.relative_to(self.out_dir).as_posix()
+        files = [p for p in dest.rglob("*") if p.is_file()] if is_dir else [dest]
+        job.nfiles, job.size = len(files), sum(p.stat().st_size for p in files)
+        job.status, job.percent = "done", 100.0

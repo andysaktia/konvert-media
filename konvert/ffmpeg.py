@@ -60,7 +60,7 @@ def _fps(s):
 
 
 def probe(path):
-    """Ringkasan file: kind (video/audio/image), durasi, dimensi, teks ringkas. ValueError jika bukan media."""
+    """Ringkasan file: kind (video/audio/image), durasi, dimensi, codec. ValueError jika bukan media."""
     r = _run([binary("ffprobe"), "-v", "error", "-print_format", "json",
               "-show_format", "-show_streams", str(path)])
     if r.returncode != 0:
@@ -87,40 +87,33 @@ def probe(path):
     else:
         raise ValueError("File tidak berisi stream audio/video/gambar")
 
-    info = {"kind": kind, "duration": duration, "width": 0, "height": 0}
+    info = {"kind": kind, "duration": duration, "width": 0, "height": 0,
+            "vcodec": video.get("codec_name", "") if video else "",
+            "acodec": audio.get("codec_name", "") if audio else "",
+            "has_audio": audio is not None}
     if video:
         info["width"], info["height"] = video.get("width", 0), video.get("height", 0)
     if kind in ("video", "image"):
-        txt = f"{info['width']}×{info['height']} · {video.get('codec_name', '?')}"
+        txt = f"{info['width']}×{info['height']}, {video.get('codec_name', '?')}"
         if kind == "video" and _fps(video) >= 1:
-            txt += f" · {_fps(video):.0f} fps"
+            txt += f", {_fps(video):.0f} fps"
     else:
         txt = audio.get("codec_name", "?")
         if audio.get("sample_rate"):
-            txt += f" · {int(audio['sample_rate']) / 1000:g} kHz"
+            txt += f", {int(audio['sample_rate']) / 1000:g} kHz"
         if audio.get("channels"):
-            txt += f" · {audio['channels']} ch"
+            txt += f", {audio['channels']} ch"
     info["summary"] = txt
     return info
 
 
-def _scale(max_h, even):
-    # `even`: lebar/tinggi harus genap untuk H.264/H.265/VP9 (yuv420p)
-    if even:
-        return f"scale=-2:'min({max_h},trunc(ih/2)*2)'"
-    return f"scale=-1:'min({max_h},ih)'"
+def build_command(src, fmt, params, ctx, target):
+    """Perintah ffmpeg lengkap (list argumen, tanpa shell). `target`: file hasil, atau folder untuk format dir."""
+    head = [binary("ffmpeg"), "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
+            "-progress", "pipe:1", "-nostats", "-i", str(src)]
+    return head + fmt["build"](params, ctx, target)
 
 
-def build_command(src, dst, preset, max_height=None):
-    """Susun perintah ffmpeg lengkap (list argumen, tanpa shell)."""
-    vf = []
-    if max_height and preset["scalable"]:
-        vf.append(_scale(max_height, preset["group"] == "video"))
-    vf += preset["vf"]
-    cmd = [binary("ffmpeg"), "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
-           "-progress", "pipe:1", "-nostats", "-i", str(src)]
-    for m in preset["maps"]:
-        cmd += ["-map", m]
-    if vf:
-        cmd += ["-vf", ",".join(vf)]
-    return cmd + preset["args"] + [str(dst)]
+def display_command(src_name, fmt, params, ctx, target):
+    """Versi ringkas untuk ditampilkan dan disalin pengguna."""
+    return ["ffmpeg", "-i", src_name] + fmt["build"](params, ctx, target)

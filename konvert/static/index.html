@@ -10,7 +10,11 @@
 <body>
   <header class="top">
     <h1>Konvert Studio</h1>
-    <p id="engine" class="engine">Memuat ffmpeg…</p>
+    <div class="top-meta">
+      <p id="engine" class="engine">Memuat ffmpeg…</p>
+      <p class="dest">Hasil disimpan di <code id="outDir">…</code>
+        <button id="openOut" class="btn" type="button">Buka folder</button></p>
+    </div>
   </header>
 
   <main class="bench">
@@ -25,12 +29,39 @@
     </section>
 
     <section class="setup" aria-labelledby="h-set">
-      <h2 id="h-set">Konversi ke</h2>
-      <div id="presets"></div>
-      <label id="heightWrap" class="field" hidden>
-        <span>Tinggi maksimum</span>
-        <select id="height"></select>
-      </label>
+      <h2 id="h-set">Pengaturan</h2>
+
+      <div class="profiles">
+        <div class="profiles-head">
+          <span class="mini">Preset cepat</span>
+          <button id="saveToggle" class="linkbtn" type="button">Simpan pengaturan ini</button>
+        </div>
+        <form id="saveForm" class="saveform" hidden>
+          <label class="sr" for="profileName">Nama preset</label>
+          <input id="profileName" maxlength="40" placeholder="Nama preset, mis. Kursus 480p" autocomplete="off">
+          <button class="btn solid" type="submit">Simpan</button>
+          <button id="saveCancel" class="btn" type="button">Batal</button>
+        </form>
+        <div id="profiles" class="chips"></div>
+      </div>
+
+      <fieldset id="groups" class="seg"><legend class="sr">Jenis hasil</legend></fieldset>
+      <div id="formats" class="chips" role="radiogroup" aria-label="Format"></div>
+      <p id="fmtDesc" class="fmt-desc"></p>
+
+      <div id="params" class="params"></div>
+      <details id="advWrap" class="more">
+        <summary>Lanjutan</summary>
+        <div id="advParams" class="params"></div>
+      </details>
+      <details class="more">
+        <summary>Perintah ffmpeg</summary>
+        <pre id="cmdText" class="cmd"></pre>
+        <button id="copyCmd" class="btn" type="button">Salin perintah</button>
+      </details>
+
+      <ul id="warns" class="warns"></ul>
+      <p id="outPreview" class="out-preview"></p>
       <button id="go" class="primary" type="button" disabled>Konversi</button>
       <p id="notice" class="notice" role="status"></p>
     </section>
@@ -38,7 +69,7 @@
     <section class="queue" aria-labelledby="h-q">
       <div class="queue-head">
         <h2 id="h-q">Hasil</h2>
-        <button id="clear" class="btn" type="button" hidden>Hapus semua hasil</button>
+        <button id="clear" class="btn" type="button" hidden title="File hasil di folder tidak ikut terhapus">Bersihkan daftar</button>
       </div>
       <ul id="jobs" class="rows"></ul>
       <p id="jobsEmpty" class="empty">Belum ada konversi. Tambahkan file, pilih format, lalu klik Konversi.</p>

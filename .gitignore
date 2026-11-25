@@ -1,4 +1,5 @@
 data/
+hasil/
 ffmpeg/
 __pycache__/
 *.egg-info/
