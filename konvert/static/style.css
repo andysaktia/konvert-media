@@ -57,9 +57,10 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; }
 .top h1 { margin: 0; font-size: 1.75rem; line-height: 1.15; font-weight: 700; letter-spacing: -0.035em; }
 .top-meta { min-width: 0; text-align: right; }
 .top-meta p { margin: 0; color: var(--muted); font-size: .875rem; }
+.top-meta .engine { color: var(--ink); font-weight: 600; }
 .engine[data-kind="error"] { color: var(--bad); }
 .dest { margin-top: 2px !important; }
-.dest code { font-size: .8125rem; color: var(--ink); overflow-wrap: anywhere; }
+.dest code { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
 
 .bench {
   display: grid;
@@ -77,7 +78,7 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; }
 .rows > li:first-child { border-top: 0; }
 .intake h2, .setup h2, .queue h2 {
   margin: 0 0 12px;
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   line-height: 1.3;
   font-weight: 650;
   letter-spacing: -0.015em;
@@ -89,13 +90,17 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; }
   background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r); cursor: pointer;
 }
 .btn:hover { background: var(--track); }
+.btn:active, .icon:active, .pbtn:active, .px:active { transform: translateY(1px); }
 .btn.solid { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 .btn.solid:hover { opacity: .88; background: var(--ink); }
 .linkbtn {
-  padding: 0; border: 0; background: none; font: inherit; font-size: .8125rem;
+  min-height: 36px; padding: 0; border: 0; background: none; font: inherit; font-size: .875rem;
   color: var(--focus); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
 }
-.mini { color: var(--muted); font-size: .8125rem; font-weight: 600; }
+.mini { color: var(--muted); font-size: .875rem; font-weight: 600; }
+.control-heading { margin: 0 0 6px; font-size: .9375rem; font-weight: 650; }
+.format-heading { margin-top: 14px; }
+.options-heading { margin-top: 16px; }
 
 /* ---------- area seret ---------- */
 .drop {
@@ -129,9 +134,9 @@ code, pre { font-family: "Cascadia Mono", Consolas, "SF Mono", monospace; }
 .setup {
   align-self: start; position: sticky; top: 16px;
   max-height: calc(100vh - 32px); overflow-y: auto;
-  padding: 20px 22px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 20px 22px; background: var(--panel); border: 1px solid var(--line);
+  border-top: 3px solid var(--signal); border-radius: var(--r);
 }
-.setup { border-top: 3px solid var(--signal); }
 
 .profiles { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .profiles-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -190,7 +195,7 @@ input[type="text"] { width: 100%; }
 .more[open] > .params { margin-top: 0; }
 .cmd {
   margin: 0 0 8px; padding: 10px; max-height: 180px; overflow: auto;
-  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45;
   background: var(--track); border-radius: var(--r);
 }
 .more > .btn { margin-bottom: 10px; }
@@ -202,12 +207,13 @@ input[type="text"] { width: 100%; }
 
 .primary {
   position: sticky; bottom: 0;
-  width: 100%; margin-top: 12px; padding: 11px 16px;
-  font: inherit; font-weight: 600; color: var(--paper); background: var(--ink);
+  width: 100%; min-height: 48px; margin-top: 12px; padding: 11px 16px;
+  font: inherit; font-weight: 650; color: var(--ink); background: var(--signal);
   border: 0; border-radius: var(--r); cursor: pointer;
 }
-.primary:hover:not(:disabled) { opacity: .88; }
-.primary:disabled { opacity: .4; cursor: not-allowed; }
+.primary:hover:not(:disabled) { filter: brightness(.96); }
+.primary:active:not(:disabled) { transform: translateY(1px); }
+.primary:disabled { color: var(--muted); background: var(--track); cursor: not-allowed; }
 .notice { min-height: 1.5em; margin: 8px 0 0; color: var(--muted); font-size: .875rem; }
 .notice[data-kind="error"] { color: var(--bad); }
 
@@ -227,13 +233,13 @@ input[type="text"] { width: 100%; }
 .status { color: var(--muted); font-size: .875rem; }
 .job[data-status="done"] .status { color: var(--ok); }
 .job[data-status="error"] .status { color: var(--bad); }
-.job-path { color: var(--muted); font-size: .8125rem; overflow-wrap: anywhere; }
+.job-path { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: flex-end; }
 .job-err { grid-column: 1 / -1; font-size: .875rem; }
 .job-err summary { cursor: pointer; color: var(--muted); }
 .job-err pre {
   margin: 6px 0 0; padding: 10px; max-height: 180px; overflow: auto;
-  white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; line-height: 1.45;
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45;
   background: var(--track); border-radius: var(--r);
 }
 
@@ -256,6 +262,7 @@ input[type="text"] { width: 100%; }
 .job[data-status="cancelled"] .strip { --fill: var(--line-strong); }
 @media (prefers-reduced-motion: no-preference) {
   .strip i { transition: width .3s linear; }
+  .btn, .icon, .pbtn, .px, .chip, .drop, .primary { transition: background-color .14s ease, border-color .14s ease, color .14s ease, filter .14s ease; }
 }
 
 /* ---------- layar sempit ---------- */
